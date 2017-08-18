@@ -68,20 +68,45 @@ static string gRsTopicPrefix = "/loomo/realsense";
 //    return depthPoints;
 //}
 
+
+//DS4 color::
+//        FocalLength = 625.807 625.807
+//PrincipalPoint = 319.895 234.772
+//Distortion = 0 0 0 0 0
+//
+//DS4 depth::
+//        FocalLength = 303.485 303.485
+//PrincipalPoint = 159.5 119.161
+//Distortion = 0 0 0 0 0
+//
+//DS4 depth to color extrinsic::
+//translation = -58.0402 -0.0668228 -0.568635
+//rotation =
+//1 0 0
+//0 1 0
+//0 0 1
+
+
+PointCloudPtr depthColor2Pc2(const ImageConstPtr& depth, const CameraInfoConstPtr& depthInfo, \
+                            const ImageConstPtr& color, const CameraInfoConstPtr& colorInfo) {
+}
+
+
 PointCloudPtr depth2PointCloud(const ImageConstPtr& depth, const CameraInfoConstPtr& depthInfo) {
     const float camera_scalar = 1000;
-    PointCloudPtr pcptr(new PointCloud());
-
-    pcptr->points.resize(depth->data.size());
-    pcptr->header = depth->header;
 
     int width = depthInfo->width, height = depthInfo->height;
     float fx = depthInfo->K[0], fy = depthInfo->K[4], cx = depthInfo->K[2], cy = depthInfo->K[5];
     float constant_x = 1.0f / (camera_scalar * fx);
     float constant_y = 1.0f / (camera_scalar * fy);
 
+    PointCloudPtr pcptr(new PointCloud());
+
+    pcptr->points.resize(width * height);
+    pcptr->header = depth->header;
+
     for (int y = 0; y < height; ++y) {
-        const unsigned short* data = (const unsigned short*)&depth->data[y * width];
+        const unsigned short* data = (const unsigned short*)&depth->data[y * depth->step];
         geometry_msgs::Point32* target = &pcptr->points[y * width];
         for (int x = 0; x < width; ++x) {
             unsigned short z = data[x];

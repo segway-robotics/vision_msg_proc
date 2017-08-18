@@ -1,0 +1,13 @@
+<!-- Setup a fixed frame for realsense link -->
+<launch>
+  <arg name="camera" default="rs" />
+  <arg name="tf_prefix" default="" />
+
+  <arg name="pi/2" value="1.5707963267948966" />
+  <arg name="optical_rotate" value="0 0 0 -$(arg pi/2) 0 -$(arg pi/2)" />
+
+  <node pkg="tf2_ros" type="static_transform_publisher" name="realsense_depth2map" args="0 0 0.64 0 0 0 /base_link /$(arg camera)_depth_frame"/>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="realsense_depth" args="$(arg optical_rotate) /$(arg camera)_depth_frame /$(arg camera)_depth_optical_frame"/>
+
+  <node pkg="loomo_vision" type="loomo_vision_node" name="loomo_vision_node" output="screen" />
+</launch>

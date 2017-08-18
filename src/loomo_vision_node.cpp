@@ -6,6 +6,7 @@
 #include <string>
 
 #include "ros/ros.h"
+#include "ros/publisher.h"
 
 #include <message_filters/subscriber.h>
 #include <message_filters/synchronizer.h>
@@ -106,37 +107,73 @@ void syncCallback(const sensor_msgs::ImageConstPtr& color, const sensor_msgs::Ca
 class VisualizerRepubr
 {
 public:
-    // relative topic names (relative to topic_base)
+    // subscribed topic names: relative, topic_base as prefix
     static string RsColorTopic, RsColorInfoTopic, RsDepthTopic, RsDepthInfoTopic;
+    // published topic names: relative to node handle private topic
+    static string RsPointCloudTopic;
 
     VisualizerRepubr(ros::NodeHandle& nh, const string& topic_base): \
-            mNhPtr(nh), mIt(nh), mRsColorSubr(mIt, topic_base + RsColorTopic, 3), mRsDepthSubr(mIt, topic_base + RsDepthTopic, 3), \
-            mRsColorInfoSubr(nh, topic_base + RsColorInfoTopic, 3), mRsDepthInfoSubr(nh, topic_base + RsDepthInfoTopic, 3), \
-            mSync4(MySyncPolicy(5), mRsColorSubr, mRsColorInfoSubr, mRsDepthSubr, mRsDepthInfoSubr){
+            mNhPtr(nh), mIt(nh), mRsColorSubr(mIt, topic_base + RsColorTopic, 5), mRsDepthSubr(nh, topic_base + RsDepthTopic, 5), \
+            mRsColorInfoSubr(nh, topic_base + RsColorInfoTopic, 5), mRsDepthInfoSubr(nh, topic_base + RsDepthInfoTopic, 5), \
+            mSync4(MySyncPolicy(10), mRsColorSubr, mRsColorInfoSubr, mRsDepthSubr, mRsDepthInfoSubr) {
 
         printf("Initialized image transport::SubscriberFilter[%s,%s], CameraInfo subscriber[%s,%s]\n", mRsColorSubr.getTopic().c_str(), \
                 mRsDepthSubr.getTopic().c_str(), mRsColorInfoSubr.getTopic().c_str(), mRsDepthInfoSubr.getTopic().c_str());
+//        mRsColorSubr.registerCallback(boost::bind(&VisualizerRepubr::rsColorCb, this, _1));
+//        mRsColorInfoSubr.registerCallback(boost::bind(&VisualizerRepubr::rsColorInfoCb, this, _1));
+//        mRsDepthSubr.registerCallback(boost::bind(&VisualizerRepubr::rsColorCb, this, _1));
+//        mRsDepthInfoSubr.registerCallback(boost::bind(&VisualizerRepubr::rsColorInfoCb, this, _1));
         mSync4.registerCallback(boost::bind(&VisualizerRepubr::sync4Callback, this, _1, _2, _3, _4));
+
+        mRsPcPubr = nh.advertise<sensor_msgs::PointCloud>(RsPointCloudTopic, 10);
     }
 
 protected:
 
     void sync4Callback(const sensor_msgs::ImageConstPtr& color, const sensor_msgs::CameraInfoConstPtr& colorInfo, \
                     const sensor_msgs::ImageConstPtr& depth, const sensor_msgs::CameraInfoConstPtr& depthInfo) {
-        printf("synced image callback {color,colorInfo,depth,depthInfo}[%.3lf,%.3lf,%.3lf,%.3lf]\n", \
-            color->header.stamp.toSec(), colorInfo->header.stamp.toSec(), \
-            depth->header.stamp.toSec(), depthInfo->header.stamp.toSec());
+        static int cc = 0;
+        static double pts = 0.d;
+        double curtime = color->header.stamp.toSec();
+        if (!cc)
+            pts = curtime;
+        ++cc;
+        double diff = curtime - pts;
+        if (diff > 1.d) {
+            double fps = (cc - 1) / diff;
+            ROS_INFO("synced image callback fps[%.2lf] avg[%.2lf]ms {color,colorInfo,depth,depthInfo}[%.3lf,%.3lf,%.3lf,%.3lf]", fps, 1000.d/fps, \
+                color->header.stamp.toSec(), colorInfo->header.stamp.toSec(), \
+                depth->header.stamp.toSec(), depthInfo->header.stamp.toSec());
+            pts = curtime;
+            cc = 1;
+        }
+
         PointCloudPtr pcptr = depth2PointCloud(depth, depthInfo);
+        mRsPcPubr.publish(pcptr);
+    }
+
+    // helper for debug input stream
+    void rsColorCb(const sensor_msgs::ImageConstPtr& color) {
+        printf("image callback [%s,%.3lf]\n", color->header.frame_id.c_str(), color->header.stamp.toSec());
+    }
+
+    // helper for debug input stream
+    void rsColorInfoCb(const sensor_msgs::CameraInfoConstPtr& info) {
+        printf("info callback [%s,%.3lf]\n", info->header.frame_id.c_str(), info->header.stamp.toSec());
     }
 
 private:
     ros::NodeHandle mNhPtr;
     image_transport::ImageTransport mIt;
-    image_transport::SubscriberFilter mRsColorSubr, mRsDepthSubr;
+    image_transport::SubscriberFilter mRsColorSubr;
+    message_filters::Subscriber<Image> mRsDepthSubr;
     message_filters::Subscriber<CameraInfo> mRsColorInfoSubr, mRsDepthInfoSubr;
 
     // synced RS 4 images based on approximate time
     message_filters::Synchronizer<MySyncPolicy> mSync4;
+
+    // PointCloud publisher
+    ros::Publisher mRsPcPubr;
 };
 
 // default values for these topic names
@@ -144,12 +181,13 @@ string VisualizerRepubr::RsColorTopic = "/rgb";
 string VisualizerRepubr::RsColorInfoTopic = "/rgb/camera_info";
 string VisualizerRepubr::RsDepthTopic = "/depth";
 string VisualizerRepubr::RsDepthInfoTopic = "/depth/camera_info";
+string VisualizerRepubr::RsPointCloudTopic = "realsense/pointcloud";
 
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "loomo_vision_node");
 
-    ros::NodeHandle nh;
+    ros::NodeHandle nh("~");
 
     VisualizerRepubr repubr(nh, gRsTopicPrefix);
 

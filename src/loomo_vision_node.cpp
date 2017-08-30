@@ -87,8 +87,32 @@ static string gRsTopicPrefix = "/loomo/realsense";
 //0 0 1
 
 
-PointCloudPtr depthColor2Pc2(const ImageConstPtr& depth, const CameraInfoConstPtr& depthInfo, \
+PointCloud2Ptr depthColor2Pc2(const ImageConstPtr& depth, const CameraInfoConstPtr& depthInfo, \
                             const ImageConstPtr& color, const CameraInfoConstPtr& colorInfo) {
+    const float camera_scalar = 1000;
+
+    int width = depthInfo->width, height = depthInfo->height;
+    float fx = depthInfo->K[0], fy = depthInfo->K[4], cx = depthInfo->K[2], cy = depthInfo->K[5];
+    float constant_x = 1.0f / (camera_scalar * fx);
+    float constant_y = 1.0f / (camera_scalar * fy);
+
+    PointCloud2Ptr pcptr(new PointCloud2());
+
+    pcptr->header = depth->header;
+
+    for (int y = 0; y < height; ++y) {
+        const unsigned short* data = (const unsigned short*)&depth->data[y * depth->step];
+        geometry_msgs::Point32* target = &pcptr->points[y * width];
+        for (int x = 0; x < width; ++x) {
+            unsigned short z = data[x];
+            if (!z)
+                continue;
+            target[x].x = (x - cx) * z * constant_x;
+            target[x].y = (y - cy) * z * constant_y;
+            target[x].z = z / camera_scalar;
+        }
+    }
+    return pcptr;
 }
 
 

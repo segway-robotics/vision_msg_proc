@@ -39,7 +39,6 @@ MySyncPolicy;
 static string gRsTopicPrefix = "/loomo/realsense";
 ros::Publisher mrgbImagePubr;
 
-bool DEBUG = 0;
 
 //std::vector<Eigen::Vector3f> depthImage2PointClouds(cv::Mat depthImage){
 //    const float camera_scalar = 1000;
@@ -99,8 +98,12 @@ bool DEBUG = 0;
 template<typename T> void convert(const sensor_msgs::ImageConstPtr& depth_msg,const sensor_msgs::ImageConstPtr& rgb_msg,
 const PointCloud2::Ptr& cloud_msg,int red_offset, int green_offset, int blue_offset, int color_step);
 
-    sensor_msgs::CameraInfo rgb_model_;
-    sensor_msgs::CameraInfo depth_model_;
+sensor_msgs::CameraInfo rgb_model_;
+sensor_msgs::CameraInfo depth_model_;
+//Eigen::Vector3f T_;
+float tx = -58.0402/1000;
+float ty = -0.0668228/1000;
+float tz = -0.568635/1000;
 
 PointCloud2Ptr depthColor2Pc2(const ImageConstPtr& depth, const CameraInfoConstPtr& depthInfo, \
                             const ImageConstPtr& color, const CameraInfoConstPtr& colorInfo) {
@@ -124,7 +127,6 @@ PointCloud2Ptr depthColor2Pc2(const ImageConstPtr& depth, const CameraInfoConstP
     info_msg_tmp.P[5] *= ratio;
     info_msg_tmp.P[6] *= ratio;
     rgb_model_ = info_msg_tmp;
-  
     cv_bridge::CvImageConstPtr cv_ptr;
     try{
       cv_ptr = cv_bridge::toCvShare(rgb_msg, rgb_msg->encoding);
@@ -218,13 +220,14 @@ const PointCloud2::Ptr& cloud_msg,int red_offset, int green_offset, int blue_off
   //cout<<rgb_msg->height<<","<<rgb_msg->width<<endl;
   
   double unit_scaling = DepthTraits<T>::toMeters( T(1) );
-  float constant_x = unit_scaling / depth_model_.K.at(2);
-  float constant_y = unit_scaling / depth_model_.K.at(5);
+  float constant_x = unit_scaling / depth_model_.K.at(0);
+  float constant_y = unit_scaling / depth_model_.K.at(4);
   float bad_point = std::numeric_limits<float>::quiet_NaN ();
   
   const T* depth_row = reinterpret_cast<const T*>(&depth_msg->data[0]);
   int row_step = depth_msg->step / sizeof(T);
   const uint8_t* rgb = &rgb_msg->data[0];
+  const uint8_t* rgb_tmp = &rgb_msg->data[0];
   int rgb_skip = rgb_msg->step - rgb_msg->width * color_step;
 
   sensor_msgs::PointCloud2Iterator<float> iter_x(*cloud_msg, "x");
@@ -234,31 +237,65 @@ const PointCloud2::Ptr& cloud_msg,int red_offset, int green_offset, int blue_off
   sensor_msgs::PointCloud2Iterator<uint8_t> iter_g(*cloud_msg, "g");
   sensor_msgs::PointCloud2Iterator<uint8_t> iter_b(*cloud_msg, "b");
   sensor_msgs::PointCloud2Iterator<uint8_t> iter_a(*cloud_msg, "a");
+  
+  //点在彩色相机坐标系下的位置
+  int u_rgb;
+  int v_rgb;
 
   for (int v = 0; v < int(cloud_msg->height); ++v, depth_row += row_step, rgb += rgb_skip)
   {
-    for (int u = 0; u < int(cloud_msg->width); ++u, rgb += color_step, ++iter_x, ++iter_y, ++iter_z, ++iter_a, ++iter_r, ++iter_g, ++iter_b)
+    for (int u = 0; u < int(cloud_msg->width); ++u, ++iter_x, ++iter_y, ++iter_z, ++iter_a, ++iter_r, ++iter_g, ++iter_b)
     {
+      rgb += color_step;
       T depth = depth_row[u];
 
       // Check for invalid measurements
       if (!DepthTraits<T>::valid(depth))
       {
         *iter_x = *iter_y = *iter_z = bad_point;
+	*iter_a = *iter_r = *iter_g = *iter_b = 255;
       }
       else
       {
         // Fill in XYZ
-        *iter_x = (u - depth_model_.K.at(0) ) * depth * constant_x;
-        *iter_y = (v - depth_model_.K.at(4) ) * depth * constant_y;
+        *iter_x = (u - depth_model_.K.at(2) ) * depth * constant_x;
+        *iter_y = (v - depth_model_.K.at(5) ) * depth * constant_y;
         *iter_z = DepthTraits<T>::toMeters(depth);
+	// Fill in color 
+	//计算该三维点对应rgb图上的坐标
+	u_rgb = ((*iter_x)+tx)*rgb_model_.K.at(0)/((*iter_z)+tz)+rgb_model_.K.at(2);
+	v_rgb = ((*iter_y)+ty)*rgb_model_.K.at(4)/((*iter_z)+tz)+rgb_model_.K.at(5);
+	/*
+	cout<<"深度坐标"<<"u:"<<u<<"v:"<<v<<endl;
+	cout<<"彩图坐标"<<"u_rgb:"<<u_rgb<<"v_rgb:"<<v_rgb<<endl;
+	cout<<"彩图大小"<<"height:"<<rgb_model_.height<<"width:"<<rgb_model_.width<<endl;
+	cout<<"点的三维坐标"<<*iter_x<<","<<*iter_y<<","<<*iter_z<<endl;
+	cout<<"深度相机参数"<<rgb_model_.K.at(0)<<","<<rgb_model_.K.at(4)<<","<<rgb_model_.K.at(2)<<","<<rgb_model_.K.at(5)<<endl;
+	cout<<"彩色相机参数"<<depth_model_.K.at(0)<<","<<depth_model_.K.at(4)<<","<<depth_model_.K.at(2)<<","<<depth_model_.K.at(5)<<endl;
+	*/
+	if(u_rgb >=0 && u_rgb < rgb_model_.height && v_rgb >=0 && v_rgb < rgb_model_.width)
+	{
+	  /*
+	  *iter_a = 255;
+	  rgb_tmp = rgb+(v_rgb*rgb_model_.width+u_rgb)*color_step;
+	  *iter_r = rgb_tmp[red_offset];
+	  *iter_g = rgb_tmp[green_offset];
+	  *iter_b = rgb_tmp[blue_offset];
+	  */
+	  
+	  *iter_a = 255;
+	  *iter_r = rgb[red_offset];
+	  *iter_g = rgb[green_offset];
+	  *iter_b = rgb[blue_offset];
+	  
+	}
+	else
+	{
+	  *iter_x = *iter_y = *iter_z = bad_point;
+	  *iter_a = *iter_r = *iter_g = *iter_b = 255;
+	}
+	
       }
-
-      // Fill in color
-      *iter_a = 255;
-      *iter_r = rgb[red_offset];
-      *iter_g = rgb[green_offset];
-      *iter_b = rgb[blue_offset];
     }
   }
 }

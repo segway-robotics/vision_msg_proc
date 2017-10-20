@@ -22,7 +22,21 @@ Then prepare the ROS environment for android development according to (http://wi
 	catkin_make #If you failed on this step, do this step by root.
 	```
 
-2. Revise the android_tutorial_camera sample
+2. There are 2 methods to get source code package. And we recommend the 1st method.
+1) open a terminal and type below command.
+	```
+	sudo apt-get install ros-kinetic-rosjava-build-tools ros-kinetic-genjava
+	mkdir -p ~/myjava
+	wstool init -j4 ~/myjava/src my_java_sources.rosinstall
+	source /opt/ros/kinetic/setup.bash
+	cd ~/myjava; catkin_make
+	source ~/myjava/devel/setup.bash
+	cd ~/myjava/src
+	git clone git@github.com:segway-robotics/android_core.git
+	cd ..
+	catkin_make
+	```
+2)Revise the android_tutorial_camera sample
 You will get a catkin workspace android_core after step 1. There is a folder, android_core, in that workspace. And there is a folder, android_tutorial_camera, in that folder. The publishing app is developed mainly based on this sample by modifying several files. The revised files are not disclosed at the moment. Suppose these revised files are at hand, replace the following 6 files in the catkin workspace created in step 1 with the revised ones.
 
 	android_core/src/android_tutorial_camera/src/org/ros/android/android_tutorial_camera/LoomoRosBridgeNode.java
@@ -32,12 +46,12 @@ You will get a catkin workspace android_core after step 1. There is a folder, an
 	android_core/src/android_tutorial_camera/res/layout/main.xml
 	android_core/src/android_tutorial_camera/res/values/strings.xml
 
-3. Build from source
+Build from source
 	```
 	cd ~/android_core
 	catkin_make
 	```
-4. Install and configure the app on loomo
+3. Install and configure the app on loomo
 Firstly, connect the computer and loomo through a USB cable.
 Secondly, open the android_core project by android studio and choose the program android_tutorial_camera as the build target (Fig. 1), then click run. If successful, there will be an app CameraTutorial shown up on loomo (Fig. 2).
 ![The backdrop of the android_tutorial_camera sample](pic/1.png)

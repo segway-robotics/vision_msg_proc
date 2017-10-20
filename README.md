@@ -23,7 +23,7 @@ Then prepare the ROS environment for android development according to (http://wi
 	```
 
 2. Revise the android_tutorial_camera sample
-You will get a catkin workspace android_core after step 1. There is a folder, android_tutorial_camera, in that workspace. The publishing app is developed mainly based on this sample by modifying several files. The revised files are not disclosed at the moment. Suppose these revised files are at hand, replace the following 6 files in the catkin workspace created in step 1 with the revised ones.
+You will get a catkin workspace android_core after step 1. There is a folder, android_core, in that workspace. And there is a folder, android_tutorial_camera, in that folder. The publishing app is developed mainly based on this sample by modifying several files. The revised files are not disclosed at the moment. Suppose these revised files are at hand, replace the following 6 files in the catkin workspace created in step 1 with the revised ones.
 
 	android_core/src/android_tutorial_camera/src/org/ros/android/android_tutorial_camera/LoomoRosBridgeNode.java
 	android_core/src/android_tutorial_camera/src/org/ros/android/android_tutorial_camera/MainActivity.java
@@ -44,6 +44,7 @@ Secondly, open the android_core project by android studio and choose the program
 Fig. 1. The backdrop of the android_tutorial_camera sample
 
 ![The CameraTutorial app installed on loomo](pic/2.png)
+
 Fig. 2. The CameraTutorial app installed on loomo
 
 To enable the robot publishing the acquired data from its sensors, first start the roscore program in a terminal of a computer. Then click the app CameraTutorial on loomo, change the IP address part of the URI blank to the IPv4 address of the computer (note ipconfig in Windows and ifconfig in Linux to check the IP address) and click the connect button (Fig. 3). If everything is OK, there will be a tip showing binding successfully. On the subsequent screen, there are five toggle buttons deciding whether a corresponding data type is published (Fig. 4). By default, nothing is published.
